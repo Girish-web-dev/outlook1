@@ -19,29 +19,29 @@ export class AuthService {
       update: {
         name: input.name,
         email: input.email,
-        avatar: input.avatar
+        avatar: input.avatar,
       },
       create: {
         googleId: input.googleId,
         name: input.name,
         email: input.email,
-        avatar: input.avatar
-      }
+        avatar: input.avatar,
+      },
     });
   }
 
   setSessionCookie(res: Response, userId: string): void {
     const token = jwt.sign({}, env.SESSION_SECRET, {
       subject: userId,
-      expiresIn: "7d"
+      expiresIn: "7d",
     });
 
     res.cookie(AUTH_COOKIE_NAME, token, {
       httpOnly: true,
       secure: env.IS_PRODUCTION,
-      sameSite: "lax",
+      sameSite: "none",
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: "/"
+      path: "/",
     });
   }
 
@@ -50,7 +50,7 @@ export class AuthService {
       httpOnly: true,
       secure: env.IS_PRODUCTION,
       sameSite: "lax",
-      path: "/"
+      path: "/",
     });
   }
 }
