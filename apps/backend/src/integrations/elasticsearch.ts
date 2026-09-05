@@ -21,7 +21,16 @@ export interface EmailSearchDocument {
 
 type IndexableEmail = Pick<
   Email,
-  "id" | "userId" | "campaignId" | "recipient" | "subject" | "body" | "status" | "scheduledAt" | "sentAt" | "createdAt"
+  | "id"
+  | "userId"
+  | "campaignId"
+  | "recipient"
+  | "subject"
+  | "body"
+  | "status"
+  | "scheduledAt"
+  | "sentAt"
+  | "createdAt"
 >;
 
 function toDocument(email: IndexableEmail): EmailSearchDocument {
@@ -39,7 +48,9 @@ function toDocument(email: IndexableEmail): EmailSearchDocument {
   };
 }
 
-function isEmailSearchDocument(value: unknown): value is EmailSearchDocument {
+function isEmailSearchDocument(
+  value: unknown
+): value is EmailSearchDocument {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -54,7 +65,19 @@ export class ElasticsearchService {
   private readonly client: Client;
   private ensureIndexPromise?: Promise<void>;
 
-  constructor(client = new Client({ node: env.ELASTICSEARCH_URL, requestTimeout: 2000 })) {
+  constructor(
+    client = new Client({
+      node: env.ELASTICSEARCH_URL,
+      requestTimeout: 2000,
+      ...(env.ELASTICSEARCH_API_KEY
+        ? {
+            auth: {
+              apiKey: env.ELASTICSEARCH_API_KEY
+            }
+          }
+        : {})
+    })
+  ) {
     this.client = client;
   }
 
@@ -75,49 +98,88 @@ export class ElasticsearchService {
   async indexEmail(email: IndexableEmail): Promise<void> {
     try {
       await this.ensureIndex();
+
       await this.client.index({
         index: EMAILS_INDEX,
         id: email.id,
         document: toDocument(email)
       });
     } catch (error) {
-      logger.error({ err: error, emailId: email.id }, "Elasticsearch indexing error");
+      logger.error(
+        { err: error, emailId: email.id },
+        "Elasticsearch indexing error"
+      );
     }
   }
 
-  async searchEmails(userId: string, query: string): Promise<EmailSearchDocument[]> {
+  async searchEmails(
+    userId: string,
+    query: string
+  ): Promise<EmailSearchDocument[]> {
     try {
       await this.ensureIndex();
-      const response = await this.client.search<EmailSearchDocument>({
-        index: EMAILS_INDEX,
-        size: 50,
-        query: {
-          bool: {
-            filter: [{ term: { userId } }],
-            must: query.trim()
-              ? [
-                  {
-                    multi_match: {
-                      query,
-                      fields: ["recipient^3", "subject^2", "body", "status"]
+
+      const response =
+        await this.client.search<EmailSearchDocument>({
+          index: EMAILS_INDEX,
+          size: 50,
+          query: {
+            bool: {
+              filter: [{ term: { userId } }],
+              must: query.trim()
+                ? [
+                    {
+                      multi_match: {
+                        query,
+                        fields: [
+                          "recipient^3",
+                          "subject^2",
+                          "body",
+                          "status"
+                        ]
+                      }
                     }
-                  }
-                ]
-              : [{ match_all: {} }]
+                  ]
+                : [{ match_all: {} }]
+            }
           }
-        }
-      });
+        });
 
       return response.hits.hits
         .map((hit) => hit._source)
-        .filter((source): source is EmailSearchDocument => isEmailSearchDocument(source));
+        .filter(
+          (
+            source
+          ): source is EmailSearchDocument =>
+            isEmailSearchDocument(source)
+        );
     } catch (error) {
-      logger.error({ err: error, userId }, "Elasticsearch search failed; falling back to PostgreSQL");
+      logger.error(
+        { err: error, userId },
+        "Elasticsearch search failed; falling back to PostgreSQL"
+      );
+
       const status = this.statusFromQuery(query);
+
       const searchFilters: Prisma.EmailWhereInput[] = [
-        { recipient: { contains: query, mode: "insensitive" } },
-        { subject: { contains: query, mode: "insensitive" } },
-        { body: { contains: query, mode: "insensitive" } }
+        {
+          recipient: {
+            contains: query,
+            mode: "insensitive"
+          }
+        },
+        {
+          subject: {
+            contains: query,
+            mode: "insensitive"
+          }
+        },
+        {
+          body: {
+            contains: query,
+            mode: "insensitive"
+          }
+        }
       ];
 
       if (status) {
@@ -129,7 +191,9 @@ export class ElasticsearchService {
           userId,
           OR: query.trim() ? searchFilters : undefined
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: {
+          createdAt: "desc"
+        },
         take: 50
       });
 
@@ -138,7 +202,10 @@ export class ElasticsearchService {
   }
 
   private async createIndexIfMissing(): Promise<void> {
-    const exists = await this.client.indices.exists({ index: EMAILS_INDEX });
+    const exists = await this.client.indices.exists({
+      index: EMAILS_INDEX
+    });
+
     if (exists) {
       return;
     }
@@ -147,24 +214,51 @@ export class ElasticsearchService {
       index: EMAILS_INDEX,
       mappings: {
         properties: {
-          id: { type: "keyword" },
-          userId: { type: "keyword" },
-          campaignId: { type: "keyword" },
-          recipient: { type: "keyword" },
-          subject: { type: "text" },
-          body: { type: "text" },
-          status: { type: "keyword" },
-          scheduledAt: { type: "date" },
-          sentAt: { type: "date" },
-          createdAt: { type: "date" }
+          id: {
+            type: "keyword"
+          },
+          userId: {
+            type: "keyword"
+          },
+          campaignId: {
+            type: "keyword"
+          },
+          recipient: {
+            type: "keyword"
+          },
+          subject: {
+            type: "text"
+          },
+          body: {
+            type: "text"
+          },
+          status: {
+            type: "keyword"
+          },
+          scheduledAt: {
+            type: "date"
+          },
+          sentAt: {
+            type: "date"
+          },
+          createdAt: {
+            type: "date"
+          }
         }
       }
     });
   }
 
-  private statusFromQuery(query: string): EmailStatus | undefined {
+  private statusFromQuery(
+    query: string
+  ): EmailStatus | undefined {
     const normalized = query.trim().toLowerCase();
-    if (["scheduled", "processing", "sent", "failed"].includes(normalized)) {
+
+    if (
+      ["scheduled", "processing", "sent", "failed"].includes(
+        normalized
+      )
+    ) {
       return normalized as EmailStatus;
     }
 
@@ -172,4 +266,5 @@ export class ElasticsearchService {
   }
 }
 
-export const elasticsearchService = new ElasticsearchService();
+export const elasticsearchService =
+  new ElasticsearchService();
