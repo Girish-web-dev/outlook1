@@ -82,6 +82,7 @@ const envSchema = z.object({
   MIN_SEND_DELAY_SECONDS: z.number().int().nonnegative(),
   MAX_EMAILS_PER_HOUR: z.number().int().positive(),
   LOG_LEVEL: z.string().min(1),
+  RUN_WORKER_IN_SERVER: z.boolean().default(false),
 });
 
 const parsed = envSchema.parse({
@@ -118,6 +119,7 @@ const parsed = envSchema.parse({
   MIN_SEND_DELAY_SECONDS: parseInteger(process.env.MIN_SEND_DELAY_SECONDS, 2),
   MAX_EMAILS_PER_HOUR: parseInteger(process.env.MAX_EMAILS_PER_HOUR, 200),
   LOG_LEVEL: process.env.LOG_LEVEL ?? "info",
+  RUN_WORKER_IN_SERVER: process.env.RUN_WORKER_IN_SERVER === "true",
 });
 
 export const env = {
